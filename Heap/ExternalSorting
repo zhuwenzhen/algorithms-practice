@@ -1,0 +1,167 @@
+
+
+介绍
+外排序算法（External Sorting），是指在内存不够的情况下，如何对存储在一个或者多个大文件中的数据进行排序的算法。外排序算法通常是解决一些大数据处理问题的第一个步骤，或者是面试官所会考察的算法基本功。外排序算法是海量数据处理算法中十分重要的一块。
+在学习这类大数据算法时，经常要考虑到内存、缓存、准确度等因素，这和我们之前见到的算法都略有差别。
+
+基本步骤
+外排序算法分为两个基本步骤：
+
+将大文件切分为若干个个小文件，并分别使用内存排好序
+使用K路归并算法（k-way merge）将若干个排好序的小文件合并到一个大文件中
+第一步：文件拆分
+根据内存的大小，尽可能多的分批次的将数据 Load 到内存中，并使用系统自带的内存排序函数（或者自己写个快速排序算法），将其排好序，并输出到一个个小文件中。比如一个文件有1T，内存有1G，那么我们就这个大文件中的内容按照 1G 的大小，分批次的导入内存，排序之后输出得到 1024 个 1G 的小文件。
+
+第二步：K路归并算法
+K路归并算法使用的是数据结构堆（Heap）来完成的，使用 Java 或者 C++ 的同学可以直接用语言自带的 PriorityQueue（C++中叫priority_queue）来代替。
+
+我们将 K 个文件中的第一个元素加入到堆里，假设数据是从小到大排序的话，那么这个堆是一个最小堆（Min Heap）。每次从堆中选出最小的元素，输出到目标结果文件中，然后如果这个元素来自第 x 个文件，则从第 x 个文件中继续读入一个新的数进来放到堆里，并重复上述操作，直到所有元素都被输出到目标结果文件中。
+
+Follow up: 一个个从文件中读入数据，一个个输出到目标文件中操作很慢，如何优化？
+如果我们每个文件只读入1个元素并放入堆里的话，总共只用到了 1024 个元素，这很小，没有充分的利用好内存。另外，单个读入和单个输出的方式也不是磁盘的高效使用方式。因此我们可以为输入和输出都分别加入一个缓冲（Buffer）。假如一个元素有10个字节大小的话，1024 个元素一共 10K，1G的内存可以支持约 100K 组这样的数据，那么我们就为每个文件设置一个 100K 大小的 Buffer，每次需要从某个文件中读数据，都将这个 Buffer 装满。当然 Buffer 中的数据都用完的时候，再批量的从文件中读入。输出同理，设置一个 Buffer 来避免单个输出带来的效率缓慢。
+
+相关练习
+Lintcode相关练习
+合并K个有序数组
+合并K个有序链表
+
+面试相关问题
+面试题：合并 K 个排好序的大文件
+面试题：求两个超大文件中 URLs 的交集
+
+更多海量数据算法相关知识可参见
+九章算法——海量数据处理算法与面试题全集
+
+// version 1: sort & merge
+public class Solution {
+    /**
+     * @param nums1 an integer array
+     * @param nums2 an integer array
+     * @return an integer array
+     */
+    public int[] intersection(int[] nums1, int[] nums2) {
+        Arrays.sort(nums1);
+        Arrays.sort(nums2);
+
+        int i = 0, j = 0;
+        int[] temp = new int[nums1.length];
+        int index = 0;
+        while (i < nums1.length && j < nums2.length) {
+            if (nums1[i] == nums2[j]) {
+                if (index == 0 || temp[index - 1] != nums1[i]) {
+                    temp[index++] = nums1[i];
+                }
+                i++;
+                j++;
+            } else if (nums1[i] < nums2[j]) {
+                i++;
+            } else {
+                j++;
+            }
+        }
+
+        int[] result = new int[index];
+        for (int k = 0; k < index; k++) {
+            result[k] = temp[k];
+        }
+
+        return result;
+    }
+}
+
+// version 2: hash map
+public class Solution {
+    /**
+     * @param nums1 an integer array
+     * @param nums2 an integer array
+     * @return an integer array
+     */
+    public int[] intersection(int[] nums1, int[] nums2) {
+        if (nums1 == null || nums2 == null) {
+            return null;
+        }
+
+        HashSet<Integer> hash = new HashSet<>();
+        for (int i = 0; i < nums1.length; i++) {
+            hash.add(nums1[i]);
+        }
+
+        HashSet<Integer> resultHash = new HashSet<>();
+        for (int i = 0; i < nums2.length; i++) {
+            if (hash.contains(nums2[i]) && !resultHash.contains(nums2[i])) {
+                resultHash.add(nums2[i]);
+            }
+        }
+
+        int size = resultHash.size();
+        int[] result = new int[size];
+        int index = 0;
+        for (Integer num : resultHash) {
+            result[index++] = num;
+        }
+
+        return result;
+    }
+}
+
+// version 3: sort & binary search
+public class Solution {
+    /**
+     * @param nums1 an integer array
+     * @param nums2 an integer array
+     * @return an integer array
+     */
+    public int[] intersection(int[] nums1, int[] nums2) {
+        if (nums1 == null || nums2 == null) {
+            return null;
+        }
+
+        HashSet<Integer> set = new HashSet<>();
+
+        Arrays.sort(nums1);
+        for (int i = 0; i < nums2.length; i++) {
+            if (set.contains(nums2[i])) {
+                continue;
+            }
+            if (binarySearch(nums1, nums2[i])) {
+                set.add(nums2[i]);
+            }
+        }
+
+        int[] result = new int[set.size()];
+        int index = 0;
+        for (Integer num : set) {
+            result[index++] = num;
+        }
+
+        return result;
+    }
+
+    private boolean binarySearch(int[] nums, int target) {
+        if (nums == null || nums.length == 0) {
+            return false;
+        }
+
+        int start = 0, end = nums.length - 1;
+        while (start + 1 < end) {
+            int mid = (end - start) / 2 + start;
+            if (nums[mid] == target) {
+                return true;
+            }
+            if (nums[mid] < target) {
+                start = mid;
+            } else {
+                end = mid;
+            }
+        }
+
+        if (nums[start] == target) {
+            return true;
+        }
+        if (nums[end] == target) {
+            return true;
+        }
+
+        return false;
+    }
+}
